@@ -1,0 +1,163 @@
+name: Generate Assets
+
+on:
+  push:
+  schedule:
+    # GitHub cron uses UTC; 18:00 UTC is 02:00 Asia/Hong_Kong.
+    - cron: "0 18 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: generate-assets-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: Platane/snk@v3
+        with:
+          github_user_name: sixiaolong1117
+          outputs: |
+            dist/github-contribution-grid-snake-dark.svg?color_snake=orange&color_dots=#58a6ff,#79c0ff,#c9d1d9,#0d1117,#58a6ff
+            dist/github-contribution-grid-snake.svg
+
+      - name: Generate 3D contribution graph
+        uses: yoshi389111/github-profile-3d-contrib@latest
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          USERNAME: ${{ github.repository_owner }}
+
+      - name: Collect 3D contribution graph
+        run: |
+          sudo mkdir -p dist/profile-3d-contrib
+          sudo cp profile-3d-contrib/*.svg dist/profile-3d-contrib/
+          sudo chown -R "$USER:$USER" dist
+
+      # A classic PAT in METRICS_TOKEN enables richer cross-repository metrics.
+      # The workflow falls back to github.token for public profile data.
+      - name: Render metrics profile
+        uses: lowlighter/metrics@latest
+        continue-on-error: true
+        with:
+          token: ${{ secrets.METRICS_TOKEN || github.token }}
+          user: ${{ github.repository_owner }}
+          filename: github-metrics/base.svg
+          output_action: none
+          config_timezone: Asia/Hong_Kong
+          template: classic
+          base: header, activity, community, repositories
+          plugin_introduction: yes
+          plugins_errors_fatal: no
+
+      - name: Render metrics languages
+        uses: lowlighter/metrics@latest
+        continue-on-error: true
+        with:
+          token: ${{ secrets.METRICS_TOKEN || github.token }}
+          user: ${{ github.repository_owner }}
+          filename: github-metrics/languages.indepth.svg
+          output_action: none
+          config_timezone: Asia/Hong_Kong
+          base: ""
+          plugin_languages: yes
+          plugin_languages_ignored: >-
+            html, css, tex, less, dockerfile, makefile, qmake, lex, cmake,
+            shell, gnuplot
+          plugin_languages_indepth: yes
+          plugin_languages_details: lines, bytes-size
+          plugin_languages_limit: 6
+          plugin_languages_analysis_timeout: 15
+          plugins_errors_fatal: no
+
+      - name: Render metrics isocalendar
+        uses: lowlighter/metrics@latest
+        continue-on-error: true
+        with:
+          token: ${{ secrets.METRICS_TOKEN || github.token }}
+          user: ${{ github.repository_owner }}
+          filename: github-metrics/isocalendar.fullyear.svg
+          output_action: none
+          config_timezone: Asia/Hong_Kong
+          base: ""
+          plugin_isocalendar: yes
+          plugin_isocalendar_duration: full-year
+          plugins_errors_fatal: no
+
+      - name: Render metrics achievements
+        uses: lowlighter/metrics@latest
+        continue-on-error: true
+        with:
+          token: ${{ secrets.METRICS_TOKEN || github.token }}
+          user: ${{ github.repository_owner }}
+          filename: github-metrics/achievements.compact.svg
+          output_action: none
+          config_timezone: Asia/Hong_Kong
+          base: ""
+          plugin_achievements: yes
+          plugin_achievements_display: compact
+          plugin_achievements_threshold: B
+          plugins_errors_fatal: no
+
+      - name: Render metrics habits
+        uses: lowlighter/metrics@latest
+        continue-on-error: true
+        with:
+          token: ${{ secrets.METRICS_TOKEN || github.token }}
+          user: ${{ github.repository_owner }}
+          filename: github-metrics/habits.charts.svg
+          output_action: none
+          config_timezone: Asia/Hong_Kong
+          base: ""
+          plugin_habits: yes
+          plugin_habits_facts: no
+          plugin_habits_charts: yes
+          plugins_errors_fatal: no
+
+      - name: Render metrics pinned repositories
+        uses: lowlighter/metrics@latest
+        continue-on-error: true
+        with:
+          token: ${{ secrets.METRICS_TOKEN || github.token }}
+          user: ${{ github.repository_owner }}
+          filename: github-metrics/repositories.pinned.svg
+          output_action: none
+          config_timezone: Asia/Hong_Kong
+          base: ""
+          plugin_repositories: yes
+          plugin_repositories_pinned: 4
+          plugins_errors_fatal: no
+
+      - name: Render metrics recently starred
+        uses: lowlighter/metrics@latest
+        continue-on-error: true
+        with:
+          token: ${{ secrets.METRICS_TOKEN || github.token }}
+          user: ${{ github.repository_owner }}
+          filename: github-metrics/stars.svg
+          output_action: none
+          config_timezone: Asia/Hong_Kong
+          base: ""
+          plugin_stars: yes
+          plugin_stars_limit: 10
+          plugins_errors_fatal: no
+
+      - name: Collect metrics renders
+        run: |
+          if [ -d /metrics_renders ]; then
+            sudo cp -R /metrics_renders/. dist/
+            sudo chown -R "$USER:$USER" dist
+          fi
+
+      - uses: crazy-max/ghaction-github-pages@v3
+        with:
+          target_branch: output
+          build_dir: dist
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
